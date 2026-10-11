@@ -378,6 +378,23 @@ private fun MutablePreferences.writeProfileHUDs(huds: ProfileHUDs) {
     this[hudOverridesKey] = json.encodeToString(huds.overrides)
 }
 
+/** The layout saved for [hud]; defaults for any part never saved. */
+internal fun Preferences.hudConfig(hud: HUDId): HUDConfig =
+    HUDConfig(config(hud.slotsKey, HUDSlots()), config(hud.stripKey, SparklineConfig()))
+
+internal fun MutablePreferences.writeHUDConfig(hud: HUDId, config: HUDConfig) {
+    this[hud.slotsKey] = json.encodeToString(config.slots)
+    this[hud.stripKey] = json.encodeToString(config.strip)
+}
+
+fun Context.streamHUDConfig(hud: HUDId): Flow<HUDConfig> =
+    dataStore.data.map { it.hudConfig(hud) }.distinctUntilChanged()
+
+/** Applies [transform] to [hud] on fresh preferences, so a concurrent edit is not reverted. */
+suspend fun Context.updateHUDConfig(hud: HUDId, transform: (HUDConfig) -> HUDConfig) {
+    dataStore.edit { prefs -> prefs.writeHUDConfig(hud, transform(prefs.hudConfig(hud))) }
+}
+
 /** The HUD settings for the profile active on the Karoo, re-resolved on every change. */
 fun Context.streamActiveHUDConfig(): Flow<HUDConfig> =
     dataStore.data
