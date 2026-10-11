@@ -35,7 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -61,7 +60,6 @@ import com.jpweytjens.barberfish.datatype.shared.ConvertType
 import com.jpweytjens.barberfish.datatype.shared.FieldState
 import com.jpweytjens.barberfish.datatype.shared.Grey100
 import com.jpweytjens.barberfish.datatype.shared.Grey200
-import com.jpweytjens.barberfish.datatype.shared.Grey500
 import com.jpweytjens.barberfish.datatype.shared.PREVIEW_DELAY_MS
 import com.jpweytjens.barberfish.datatype.shared.TextDark
 import com.jpweytjens.barberfish.datatype.shared.ViewSizeConfig
@@ -79,7 +77,7 @@ import com.jpweytjens.barberfish.datatype.sparklineHeaderPx
 import com.jpweytjens.barberfish.extension.CadenceSmoothingStream
 import com.jpweytjens.barberfish.extension.ElevationSimplification
 import com.jpweytjens.barberfish.extension.ElevationZoom
-import com.jpweytjens.barberfish.extension.HUDOverride
+import com.jpweytjens.barberfish.extension.HUDId
 import com.jpweytjens.barberfish.extension.HUDSlotConfig
 import com.jpweytjens.barberfish.extension.HUDSlotField
 import com.jpweytjens.barberfish.extension.HUDSlots
@@ -92,8 +90,6 @@ import com.jpweytjens.barberfish.extension.TimeConfig
 import com.jpweytjens.barberfish.extension.ZoneColorMode
 import com.jpweytjens.barberfish.extension.ZoneConfig
 import com.jpweytjens.barberfish.extension.ZoneDisplayMode
-import com.jpweytjens.barberfish.extension.profileMenuIds
-import com.jpweytjens.barberfish.extension.sharedProfileCount
 import io.hammerhead.karooext.models.UserProfile
 import io.hammerhead.karooext.models.ViewConfig
 import kotlinx.coroutines.delay
@@ -112,8 +108,6 @@ private const val HUD_SPARKLINE_CELL_RESERVATION_DP = 34f
 
 // Total height of the HUD preview container (3 or 4 cells side-by-side + sparkline strip).
 private val HUD_PREVIEW_HEIGHT = 90.dp
-private const val DISABLED_ALPHA = 0.38f
-private const val ORPHAN_ID_CHARS = 8
 
 // Sweep position the preview freezes at in screenshot mode (LocalScreenshotMode): on the steep
 // ramp of the second climb of the On-mode RvV fixture (12 to 16 % between 6663 and 6750 m), so
@@ -137,9 +131,6 @@ internal fun HUDConfigSection(
     onUpdate: (HUDSlots) -> Unit,
     onSparklineUpdate: (SparklineConfig) -> Unit,
     initialSelectedSlot: Int? = null,
-    // False while a profile uses the Shared HUD: the controls show Shared's values, greyed and
-    // inert, until the profile is switched to Custom.
-    enabled: Boolean = true,
 ) {
     // initialSelectedSlot is the column selected when the section first composes, so a screenshot
     // can show a slot's card open. The config screen leaves it null: nothing is selected until
@@ -147,18 +138,15 @@ internal fun HUDConfigSection(
     var selection by remember {
         mutableStateOf<HudSelection?>(initialSelectedSlot?.let { HudSelection.Slot(it) })
     }
-    val selectedSlot = (selection as? HudSelection.Slot)?.index?.takeIf { enabled }
-    val stripSelected = enabled && selection is HudSelection.Strip
+    val selectedSlot = (selection as? HudSelection.Slot)?.index
+    val stripSelected = selection is HudSelection.Strip
 
-    Column(
-        modifier = Modifier.alpha(if (enabled) 1f else DISABLED_ALPHA),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ControlLabel("NUMBER OF COLUMNS")
         ColumnCountToggle(
             columns = slots.columns,
             onSelect = { cols ->
-                if (enabled && cols != slots.columns) {
+                if (cols != slots.columns) {
                     selection = null
                     onUpdate(slots.copy(columns = cols))
                 }
@@ -167,13 +155,11 @@ internal fun HUDConfigSection(
         SparklineModeToggle(
             mode = sparklineConfig.hudMode,
             onSelect = { mode ->
-                if (enabled) {
-                    if (mode == SparklineMode.OFF && stripSelected) selection = null
-                    onSparklineUpdate(sparklineConfig.copy(mode = mode))
-                }
+                if (mode == SparklineMode.OFF && stripSelected) selection = null
+                onSparklineUpdate(sparklineConfig.copy(mode = mode))
             },
         )
-        HelperText(hudHelperText(enabled, sparklineConfig.hudMode))
+        HelperText(hudHelperText(sparklineConfig.hudMode))
         HUDPreview(
             slots = slots,
             sparklineConfig = sparklineConfig,
@@ -182,12 +168,10 @@ internal fun HUDConfigSection(
             profile = profile,
             selectedSlot = selectedSlot,
             onSlotSelected = { idx ->
-                if (enabled) selection = if (selectedSlot == idx) null else HudSelection.Slot(idx)
+                selection = if (selectedSlot == idx) null else HudSelection.Slot(idx)
             },
             stripSelected = stripSelected,
-            onStripSelected = {
-                if (enabled) selection = if (stripSelected) null else HudSelection.Strip
-            },
+            onStripSelected = { selection = if (stripSelected) null else HudSelection.Strip },
             modifier = Modifier.testTag("bf:hud:preview"),
         )
 
@@ -198,12 +182,9 @@ internal fun HUDConfigSection(
     }
 }
 
-private fun hudHelperText(enabled: Boolean, mode: SparklineMode): String =
-    when {
-        !enabled -> "Switch to Custom to change this profile's HUD."
-        mode != SparklineMode.OFF -> "Tap a column or the elevation profile to configure it."
-        else -> "Tap a column to configure it."
-    }
+private fun hudHelperText(mode: SparklineMode): String =
+    if (mode != SparklineMode.OFF) "Tap a column or the elevation profile to configure it."
+    else "Tap a column to configure it."
 
 /** The elevation strip's options, shown while the strip is selected. */
 @Composable
@@ -282,97 +263,15 @@ internal class PendingHUDWrites {
     }
 }
 
-/**
- * Right-aligned dropdown tag for a profile: marks the exceptions, so a profile on Shared is bare.
- */
-internal fun profileTag(
-    id: String,
-    overrides: Map<String, HUDOverride>,
-    activeId: String?,
-): String =
-    listOfNotNull(
-            "custom".takeIf { overrides[id]?.custom == true },
-            "current".takeIf { id == activeId },
-        )
-        .joinToString(" · ")
-
-/** The Shared entry's tag. Only Shared carries a count, so it stays distinct from any profile. */
-internal fun sharedTag(count: Int): String = if (count == 1) "1 profile" else "$count profiles"
-
-/**
- * Picks which HUD the card below edits: Shared ([selectedId] null) or one profile's. For a profile
- * it also shows the Shared | Custom toggle.
- */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Picks which of the four HUDs the card below edits. */
 @Composable
-internal fun HUDProfilePicker(
-    selectedId: String?,
-    discovered: Map<String, String>,
-    overrides: Map<String, HUDOverride>,
-    activeId: String?,
-    onSelect: (String?) -> Unit,
-    onCustomChange: (Boolean) -> Unit,
-) {
-    // Orphaned overrides (profiles never seen, or deleted) show a short id prefix.
-    fun nameOf(id: String) = discovered[id] ?: id.take(ORPHAN_ID_CHARS)
-    val sharedLabel = sharedTag(sharedProfileCount(discovered, overrides))
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = selectedId?.let(::nameOf) ?: "Shared",
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Profile") },
-            singleLine = true,
-            // The tag sits under the field, not beside the name, so a long name keeps its width.
-            supportingText =
-                (selectedId?.let { profileTag(it, overrides, activeId) } ?: sharedLabel)
-                    .takeIf { it.isNotEmpty() }
-                    ?.let { tag -> { Text(tag, fontSize = 12.sp, color = Grey500) } },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier =
-                Modifier.testTag("bf:hud:profile-picker")
-                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-                    .fillMaxWidth(),
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            ProfileMenuItem("Shared", sharedLabel) {
-                onSelect(null)
-                expanded = false
-            }
-            HorizontalDivider()
-            profileMenuIds(discovered, overrides).forEach { id ->
-                ProfileMenuItem(nameOf(id), profileTag(id, overrides, activeId)) {
-                    onSelect(id)
-                    expanded = false
-                }
-            }
-        }
-    }
-    if (selectedId == null) {
-        HelperText("Missing a profile? Swipe through your profiles on the Karoo home screen.")
-    } else {
-        ControlLabel("HUD FOR ${nameOf(selectedId).uppercase()}")
-        SegmentedRow(
-            options = listOf(false to "Shared", true to "Custom"),
-            selected = overrides[selectedId]?.custom == true,
-            onSelect = onCustomChange,
-            modifier = Modifier.testTag("bf:hud:profile-custom"),
-            trackColor = Grey200,
-        )
-    }
-}
-
-@Composable
-private fun ProfileMenuItem(name: String, tag: String, onClick: () -> Unit) {
-    DropdownMenuItem(
-        text = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(name, modifier = Modifier.weight(1f))
-                Text(tag, fontSize = 12.sp, color = Grey500)
-            }
-        },
-        onClick = onClick,
+internal fun HUDPicker(selected: HUDId, onSelect: (HUDId) -> Unit) {
+    SegmentedRow(
+        options = HUDId.entries.map { it to it.label },
+        selected = selected,
+        onSelect = onSelect,
+        modifier = Modifier.testTag("bf:hud:picker"),
+        trackColor = Grey200,
     )
 }
 

@@ -156,9 +156,7 @@ import com.jpweytjens.barberfish.extension.HRFieldKind
 import com.jpweytjens.barberfish.extension.HRMaxPercentFieldConfig
 import com.jpweytjens.barberfish.extension.HRZoneFieldConfig
 import com.jpweytjens.barberfish.extension.HUDConfig
-import com.jpweytjens.barberfish.extension.HUDOverride
-import com.jpweytjens.barberfish.extension.HUDScope
-import com.jpweytjens.barberfish.extension.HUDSlots
+import com.jpweytjens.barberfish.extension.HUDId
 import com.jpweytjens.barberfish.extension.LabelSize
 import com.jpweytjens.barberfish.extension.LapPowerFieldConfig
 import com.jpweytjens.barberfish.extension.MaxHRFieldConfig
@@ -167,7 +165,6 @@ import com.jpweytjens.barberfish.extension.NPFieldConfig
 import com.jpweytjens.barberfish.extension.PowerFieldConfig
 import com.jpweytjens.barberfish.extension.PowerSmoothingStream
 import com.jpweytjens.barberfish.extension.PowerZoneFieldConfig
-import com.jpweytjens.barberfish.extension.ProfileHUDs
 import com.jpweytjens.barberfish.extension.RouteRemainingConfig
 import com.jpweytjens.barberfish.extension.RouteSimplification
 import com.jpweytjens.barberfish.extension.SparklineConfig
@@ -181,10 +178,6 @@ import com.jpweytjens.barberfish.extension.TimeFormat
 import com.jpweytjens.barberfish.extension.ZoneColorMode
 import com.jpweytjens.barberfish.extension.ZoneConfig
 import com.jpweytjens.barberfish.extension.ZoneDisplayMode
-import com.jpweytjens.barberfish.extension.applyHUDEdit
-import com.jpweytjens.barberfish.extension.hudScopeFor
-import com.jpweytjens.barberfish.extension.initialHUDSelection
-import com.jpweytjens.barberfish.extension.resolveHUDConfig
 import com.jpweytjens.barberfish.extension.saveAvgPowerFieldConfig
 import com.jpweytjens.barberfish.extension.saveAvgSpeedConfig
 import com.jpweytjens.barberfish.extension.saveCadenceFieldConfig
@@ -207,8 +200,6 @@ import com.jpweytjens.barberfish.extension.saveRouteRemainingConfig
 import com.jpweytjens.barberfish.extension.saveSpeedFieldConfig
 import com.jpweytjens.barberfish.extension.saveTimeConfig
 import com.jpweytjens.barberfish.extension.saveZoneConfig
-import com.jpweytjens.barberfish.extension.setCustom
-import com.jpweytjens.barberfish.extension.setHUDCustom
 import com.jpweytjens.barberfish.extension.streamConfigSnapshot
 import com.jpweytjens.barberfish.extension.streamUserProfile
 import com.jpweytjens.barberfish.extension.updateHUDConfig
@@ -255,14 +246,9 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalComposeUiApi::class)
     @Composable
     private fun ConfigScreen() {
-        var hudSlots by remember { mutableStateOf(HUDSlots()) }
-        var hudStrip by remember { mutableStateOf(SparklineConfig()) }
-        var hudOverrides by remember { mutableStateOf(emptyMap<String, HUDOverride>()) }
-        var discoveredProfiles by remember { mutableStateOf(emptyMap<String, String>()) }
-        var activeProfileId by remember { mutableStateOf<String?>(null) }
-        // The profile whose HUD the card edits; null is Shared. Set once from the first snapshot.
-        var hudProfileId by remember { mutableStateOf<String?>(null) }
-        var hudProfileChosen by remember { mutableStateOf(false) }
+        var huds by remember { mutableStateOf(HUDId.entries.associateWith { HUDConfig() }) }
+        // The HUD the card edits.
+        var selectedHud by remember { mutableStateOf(HUDId.ONE) }
         val pendingHUDWrites = remember { PendingHUDWrites() }
         var fieldSparklineConfig by remember { mutableStateOf(SparklineConfig()) }
         var gradeMapConfig by remember { mutableStateOf(GradeMapConfig()) }
@@ -322,11 +308,7 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(Unit) {
             launch {
                 streamConfigSnapshot().collect { snapshot ->
-                    if (pendingHUDWrites.idle) {
-                        hudSlots = snapshot.hud
-                        hudStrip = snapshot.hudSparkline
-                        hudOverrides = snapshot.hudOverrides
-                    }
+                    if (pendingHUDWrites.idle) huds = snapshot.huds
                     fieldSparklineConfig = snapshot.fieldSparkline
                     gradeMapConfig = snapshot.gradeMap
                     powerFieldConfig = snapshot.powerField
@@ -354,13 +336,6 @@ class MainActivity : ComponentActivity() {
                     routeRemainingConfig = snapshot.routeRemaining
                     zoneConfig = snapshot.zone
                     dataFieldDesignConfig = snapshot.dataFieldDesign
-                    discoveredProfiles = snapshot.discoveredProfiles
-                    activeProfileId = snapshot.activeProfileId
-                    if (!hudProfileChosen) {
-                        hudProfileId =
-                            initialHUDSelection(snapshot.activeProfileId, snapshot.hudOverrides)
-                        hudProfileChosen = true
-                    }
                 }
             }
             launch { karooSystem.streamUserProfile().collect { userProfile = it } }
@@ -396,49 +371,25 @@ class MainActivity : ComponentActivity() {
                         expanded = hudExpanded,
                         onToggle = { hudExpanded = !hudExpanded },
                     ) {
-                        val sharedHud = HUDConfig(hudSlots, hudStrip)
-                        val shown = resolveHUDConfig(hudProfileId, hudOverrides, sharedHud)
+                        val shown = huds.getValue(selectedHud)
                         // Applies an edit to the screen's state at once, so a second quick edit
                         // builds on the first, then writes the same change to fresh preferences.
                         fun editHUD(transform: (HUDConfig) -> HUDConfig) {
-                            val scope = hudScopeFor(hudProfileId, hudOverrides)
-                            val edited =
-                                applyHUDEdit(ProfileHUDs(sharedHud, hudOverrides), scope, transform)
-                            hudSlots = edited.shared.slots
-                            hudStrip = edited.shared.strip
-                            hudOverrides = edited.overrides
+                            val hud = selectedHud
+                            huds = huds + (hud to transform(huds.getValue(hud)))
                             pendingHUDWrites.begin()
                             lifecycleScope.launch {
                                 try {
-                                    updateHUDConfig(scope, transform)
+                                    updateHUDConfig(hud, transform)
                                 } finally {
                                     pendingHUDWrites.end()
                                 }
                             }
                         }
-                        HUDProfilePicker(
-                            selectedId = hudProfileId,
-                            discovered = discoveredProfiles,
-                            overrides = hudOverrides,
-                            activeId = activeProfileId,
-                            onSelect = { hudProfileId = it },
-                            onCustomChange = { custom ->
-                                hudProfileId?.let { id ->
-                                    hudOverrides = setCustom(hudOverrides, id, custom, sharedHud)
-                                    pendingHUDWrites.begin()
-                                    lifecycleScope.launch {
-                                        try {
-                                            setHUDCustom(id, custom)
-                                        } finally {
-                                            pendingHUDWrites.end()
-                                        }
-                                    }
-                                }
-                            },
-                        )
+                        HUDPicker(selected = selectedHud, onSelect = { selectedHud = it })
                         HorizontalDivider(color = Grey200)
-                        // Keyed on the profile so switching closes any open slot or strip card.
-                        key(hudProfileId) {
+                        // Keyed on the HUD so switching closes any open slot or strip card.
+                        key(selectedHud) {
                             HUDConfigSection(
                                 slots = shown.slots,
                                 // Screenshot mode forces the elevation profile On so the HUD shot
@@ -453,9 +404,6 @@ class MainActivity : ComponentActivity() {
                                 onSparklineUpdate = { updated ->
                                     editHUD { it.copy(strip = updated) }
                                 },
-                                enabled =
-                                    hudProfileId == null ||
-                                        hudScopeFor(hudProfileId, hudOverrides) is HUDScope.Profile,
                             )
                         }
                     } // end HUD

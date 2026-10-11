@@ -71,7 +71,7 @@ class ConfigReceiver : BroadcastReceiver() {
         when (name) {
             "hud" -> {
                 val cfg = json.decodeFromString<HUDConfig>(text)
-                app.updateActiveHUDConfig { cfg }
+                app.updateHUDConfig(HUDId.ONE) { cfg }
             }
             "zone" -> app.saveZoneConfig(json.decodeFromString<ZoneConfig>(text))
             "time" -> app.saveTimeConfig(json.decodeFromString<TimeConfig>(text))
@@ -83,7 +83,7 @@ class ConfigReceiver : BroadcastReceiver() {
 
     private suspend fun readConfig(app: Context, name: String): String? =
         when (name) {
-            "hud" -> json.encodeToString(app.streamActiveHUDConfig().first())
+            "hud" -> json.encodeToString(app.streamHUDConfig(HUDId.ONE).first())
             "zone" -> json.encodeToString(app.streamZoneConfig().first())
             "time" -> json.encodeToString(app.streamTimeConfig().first())
             "grade_pin" -> json.encodeToString(app.streamGradePin().first())
