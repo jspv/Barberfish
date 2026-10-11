@@ -4,6 +4,9 @@
     <!-- Invisible one-line probe that anchors the value box in the field layouts. -->
     <string name="header_probe" translatable="false">M</string>
     <string name="hud_name">HUD</string>
+    <string name="hud_2_name">HUD 2</string>
+    <string name="hud_3_name">HUD 3</string>
+    <string name="hud_4_name">HUD 4</string>
     <string name="hud_description">Heads-up display with speed, HR, and power in three columns with zone coloring</string>
     <string name="power_name">Power</string>
     <string name="power_description">Current power output with smoothing and zone coloring</string>

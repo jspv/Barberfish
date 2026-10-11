@@ -116,7 +116,10 @@ private const val CHEVRON_LOOKAHEAD_PX = 800.0
 // Top-level so the instrumented preview-render harness can iterate every field.
 fun barberfishDataTypes(karooSystem: KarooSystemService): List<BarberfishBase<*>> =
     listOf(
-        HUDField(karooSystem),
+        HUDField(karooSystem, HUDId.ONE),
+        HUDField(karooSystem, HUDId.TWO),
+        HUDField(karooSystem, HUDId.THREE),
+        HUDField(karooSystem, HUDId.FOUR),
         // Power
         PowerField(karooSystem),
         AvgPowerField(karooSystem),

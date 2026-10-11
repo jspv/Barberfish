@@ -17,9 +17,11 @@ class SparklineTapReceiver : BroadcastReceiver() {
         const val EXTRA_SURFACE = "surface"
         const val SURFACE_HUD = "hud"
         const val SURFACE_FIELD = "field"
-        // Pair<tapTimestamp, nextLookaheadKm>; only the HUD strip listens (transition overlay).
+        // Names the tapped HUD (a HUDId name) on HUD strip taps.
+        const val EXTRA_HUD = "hud"
+        // The last HUD strip tap; only the HUD strips listen (transition overlay).
         // Timestamp is always unique (ms), preventing MutableStateFlow deduplication.
-        val tapSignal = MutableStateFlow(0L to 10)
+        val tapSignal = MutableStateFlow(HUDTap.NONE)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -35,10 +37,10 @@ class SparklineTapReceiver : BroadcastReceiver() {
                             cfg.copy(lookaheadKm = nextLookahead(cfg.lookaheadKm))
                         )
                     } else {
-                        // Writes to the HUD the active profile shows: its own while Custom.
-                        context.updateActiveHUDConfig { config ->
+                        val hud = HUDId.fromName(intent.getStringExtra(EXTRA_HUD))
+                        context.updateHUDConfig(hud) { config ->
                             val next = nextLookahead(config.strip.lookaheadKm)
-                            tapSignal.value = System.currentTimeMillis() to next
+                            tapSignal.value = HUDTap(System.currentTimeMillis(), hud, next)
                             config.copy(strip = config.strip.copy(lookaheadKm = next))
                         }
                     }
@@ -49,6 +51,18 @@ class SparklineTapReceiver : BroadcastReceiver() {
             }
         }
     }
+}
+
+/** The last strip tap: which HUD, and the lookahead it moved to. [NONE] before any tap. */
+data class HUDTap(val timestampMs: Long, val hud: HUDId, val lookaheadKm: Int) {
+    companion object {
+        val NONE = HUDTap(0L, HUDId.ONE, 10)
+    }
+}
+
+/** The lookahead to flash on [hud], or null when this tap belongs to another HUD or none. */
+fun HUDTap.lookaheadFor(hud: HUDId): Int? = lookaheadKm.takeIf {
+    timestampMs != 0L && this.hud == hud
 }
 
 private fun nextLookahead(current: Int): Int =

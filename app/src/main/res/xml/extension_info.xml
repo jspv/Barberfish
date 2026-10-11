@@ -10,6 +10,21 @@
         displayName="@string/hud_name"
         description="@string/hud_description"
         graphical="true" />
+    <DataType
+        typeId="hud-2"
+        displayName="@string/hud_2_name"
+        description="@string/hud_description"
+        graphical="true" />
+    <DataType
+        typeId="hud-3"
+        displayName="@string/hud_3_name"
+        description="@string/hud_description"
+        graphical="true" />
+    <DataType
+        typeId="hud-4"
+        displayName="@string/hud_4_name"
+        description="@string/hud_description"
+        graphical="true" />
     <!-- Power -->
     <DataType
         icon="@drawable/ic_col_power"

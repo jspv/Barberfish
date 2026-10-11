@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.view.View
+import androidx.core.net.toUri
 import com.jpweytjens.barberfish.R
 import com.jpweytjens.barberfish.datatype.shared.ConvertType
 import com.jpweytjens.barberfish.datatype.shared.FieldState
@@ -20,9 +21,11 @@ import com.jpweytjens.barberfish.extension.GradeFieldConfig
 import com.jpweytjens.barberfish.extension.HRFieldConfig
 import com.jpweytjens.barberfish.extension.HRMaxPercentFieldConfig
 import com.jpweytjens.barberfish.extension.HRZoneFieldConfig
+import com.jpweytjens.barberfish.extension.HUDId
 import com.jpweytjens.barberfish.extension.HUDSlotConfig
 import com.jpweytjens.barberfish.extension.HUDSlotField
 import com.jpweytjens.barberfish.extension.HUDSlots
+import com.jpweytjens.barberfish.extension.HUDTap
 import com.jpweytjens.barberfish.extension.LapPowerFieldConfig
 import com.jpweytjens.barberfish.extension.MaxHRFieldConfig
 import com.jpweytjens.barberfish.extension.MaxPowerFieldConfig
@@ -34,10 +37,11 @@ import com.jpweytjens.barberfish.extension.SpeedFieldConfig
 import com.jpweytjens.barberfish.extension.TimeConfig
 import com.jpweytjens.barberfish.extension.ZoneConfig
 import com.jpweytjens.barberfish.extension.lapNumberFrom
-import com.jpweytjens.barberfish.extension.streamActiveHUDConfig
+import com.jpweytjens.barberfish.extension.lookaheadFor
 import com.jpweytjens.barberfish.extension.streamDataFieldDesignConfig
 import com.jpweytjens.barberfish.extension.streamDataFlow
 import com.jpweytjens.barberfish.extension.streamETAConfig
+import com.jpweytjens.barberfish.extension.streamHUDConfig
 import com.jpweytjens.barberfish.extension.streamTimeConfig
 import com.jpweytjens.barberfish.extension.streamUserProfile
 import com.jpweytjens.barberfish.extension.streamZoneConfig
@@ -63,6 +67,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.sample
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -71,8 +76,8 @@ import timber.log.Timber
 private const val HUD_SPARKLINE_HEIGHT_DP = 34f
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class HUDField(private val karooSystem: KarooSystemService) :
-    HUDDataType("barberfish", "three-column") {
+class HUDField(private val karooSystem: KarooSystemService, private val hud: HUDId) :
+    HUDDataType("barberfish", hud.typeId) {
 
     @OptIn(FlowPreview::class)
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
@@ -84,7 +89,7 @@ class HUDField(private val karooSystem: KarooSystemService) :
         val scope = CoroutineScope(Dispatchers.IO + Job())
         emitter.setCancellable {
             scope.cancel()
-            SparklineTapReceiver.tapSignal.value = 0L to 10
+            SparklineTapReceiver.tapSignal.update { if (it.hud == hud) HUDTap.NONE else it }
         }
         scope.launch {
             val hudStateFlow = if (config.preview) previewFlow(context) else liveFlow(context)
@@ -95,14 +100,15 @@ class HUDField(private val karooSystem: KarooSystemService) :
                     karooSystem,
                     context,
                     configFlow =
-                        context.streamActiveHUDConfig().map { it.strip }.distinctUntilChanged(),
+                        context.streamHUDConfig(hud).map { it.strip }.distinctUntilChanged(),
                     widthPx = dm.widthPixels,
                     heightPx = sparklineHeightPx,
                     isPreview = config.preview,
                 )
             val transitionFlow: Flow<Int?> =
-                SparklineTapReceiver.tapSignal.flatMapLatest { (ts, km) ->
-                    if (ts == 0L) flowOf(null)
+                SparklineTapReceiver.tapSignal.flatMapLatest { tap ->
+                    val km = tap.lookaheadFor(hud)
+                    if (km == null) flowOf(null)
                     else
                         flow {
                             emit(km)
@@ -187,6 +193,10 @@ class HUDField(private val karooSystem: KarooSystemService) :
                                         SparklineTapReceiver.EXTRA_SURFACE,
                                         SparklineTapReceiver.SURFACE_HUD,
                                     )
+                                    putExtra(SparklineTapReceiver.EXTRA_HUD, hud.name)
+                                    // Extras don't make intents distinct, so without this the
+                                    // HUDs would share one PendingIntent and its last extra.
+                                    data = "barberfish://hud/${hud.name}".toUri()
                                 }
                             val pi =
                                 PendingIntent.getBroadcast(
@@ -207,7 +217,7 @@ class HUDField(private val karooSystem: KarooSystemService) :
 
     override fun liveFlow(context: Context): Flow<HUDState> =
         combine(
-                context.streamActiveHUDConfig().map { it.slots }.distinctUntilChanged(),
+                context.streamHUDConfig(hud).map { it.slots }.distinctUntilChanged(),
                 context.streamZoneConfig(),
                 karooSystem.streamUserProfile(),
             ) { cfg, zones, profile ->
@@ -233,7 +243,7 @@ class HUDField(private val karooSystem: KarooSystemService) :
 
     override fun previewFlow(context: Context): Flow<HUDState> =
         combine(
-                context.streamActiveHUDConfig().map { it.slots }.distinctUntilChanged(),
+                context.streamHUDConfig(hud).map { it.slots }.distinctUntilChanged(),
                 context.streamZoneConfig(),
                 karooSystem.streamUserProfile(),
             ) { cfg, zones, profile ->
