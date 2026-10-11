@@ -1,0 +1,70 @@
+# Fork-only: builds a test APK from a branch and publishes it as a pre-release on this fork,
+# so it can be sideloaded to a Karoo through the Hammerhead companion app. Signed with a
+# fork-only key, so successive test builds install over each other.
+name: Fork test APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to build
+        required: true
+        default: feat/multiple-huds
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Inject signing config
+        env:
+          KEYSTORE_B64: ${{ secrets.FORK_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.FORK_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > app/fork.keystore
+          {
+            echo "signing.store.file=fork.keystore"
+            echo "signing.store.password=$KEYSTORE_PASSWORD"
+            echo "signing.key.alias=fork"
+            echo "signing.key.password=$KEYSTORE_PASSWORD"
+          } >> local.properties
+
+      - name: Assemble release APK
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          tag="test-$(git rev-parse --short=7 HEAD)-${GITHUB_RUN_NUMBER}"
+          mv app/build/outputs/apk/release/app-release.apk barberfish-test.apk
+          gh release create "$tag" barberfish-test.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$sha" \
+            --prerelease \
+            --title "Test build $tag" \
+            --notes "Test build of ${{ inputs.ref }} at $sha. Not an official release."
