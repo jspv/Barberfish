@@ -7,6 +7,7 @@ import com.jpweytjens.barberfish.extension.HUDConfig
 import com.jpweytjens.barberfish.extension.HUDId
 import com.jpweytjens.barberfish.extension.HUDSlots
 import com.jpweytjens.barberfish.extension.SparklineConfig
+import com.jpweytjens.barberfish.extension.allHUDConfigs
 import com.jpweytjens.barberfish.extension.hudConfig
 import com.jpweytjens.barberfish.extension.writeHUDConfig
 import org.junit.Assert.assertEquals
@@ -70,5 +71,14 @@ class HUDStorageTest {
         assertEquals(HUDId.THREE, HUDId.fromName("THREE"))
         assertEquals(HUDId.ONE, HUDId.fromName(null))
         assertEquals(HUDId.ONE, HUDId.fromName("nope"))
+    }
+
+    @Test
+    fun `the snapshot holds every HUD`() {
+        val prefs = mutablePreferencesOf()
+        prefs.writeHUDConfig(HUDId.FOUR, fourColumns)
+        val all = prefs.allHUDConfigs()
+        assertEquals(HUDId.entries.toSet(), all.keys)
+        assertEquals(fourColumns, all.getValue(HUDId.FOUR))
     }
 }
