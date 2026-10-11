@@ -21,11 +21,9 @@ A slot holds power, heart rate, speed, cadence, grade, distance, time, or ETA, i
 
 <img src="screenshots/hud_config.jpg" alt="HUD config with a 4-column live preview and the Power column selected, its data field, smoothing, and zone color options below" width="480">
 
-## A HUD per profile
+## More than one HUD
 
-A gravel bike with a power meter and a mountain bike without one want different HUDs, so each Karoo profile can have its own. Every profile starts on the shared HUD, the one these settings have always set. To change a profile's HUD, pick it under Profile at the top of the HUD settings and switch it from Shared to Custom. It starts as a copy of the shared HUD, and from then on its columns, slots and profile strip are its own. On a ride you get the HUD of the profile you started it in.
-
-Barberfish learns your profiles as the Karoo selects them, so a fresh install lists none. Swipe once through the profiles on the Karoo home screen and they all appear. A profile switched back to Shared keeps its custom HUD for when it goes back to Custom. A profile deleted on the Karoo stays in the list, since Barberfish never hears that it is gone.
+The map page and a workout page want different numbers, and so do a gravel bike and a mountain bike without a power meter. Barberfish offers four HUD fields: HUD, HUD 2, HUD 3 and HUD 4. Each has its own columns, slots and profile strip, set in the HUD settings after picking it at the top. Place whichever HUD suits a page on that page. The Karoo keeps a separate set of pages for each profile, so a profile gets its own HUD by having a different one placed on its pages.
 
 ## Missing sensors
 
@@ -44,4 +42,4 @@ A slot whose sensor goes missing, a heart rate strap left at home or a power met
 
 ## The profile strip
 
-The strip runs in one of three modes. On shows the profile whenever a route is loaded or you are riding to a destination. Climbs keeps it hidden until a climb nears, then [frames that climb foot to summit](gallery.md#climbs-mode). Off leaves the HUD as numbers only. Tapping the strip cycles 5, 10, or 20 km of lookahead for the HUD on screen, so a custom profile keeps its own, and its other settings are those of the Profile field ([shaping the profile](elevation-profile.md#shaping-the-profile)), kept separately.
+The strip runs in one of three modes. On shows the profile whenever a route is loaded or you are riding to a destination. Climbs keeps it hidden until a climb nears, then [frames that climb foot to summit](gallery.md#climbs-mode). Off leaves the HUD as numbers only. Tapping the strip cycles 5, 10, or 20 km of lookahead for the HUD you tapped, so each HUD keeps its own, and its other settings are those of the Profile field ([shaping the profile](elevation-profile.md#shaping-the-profile)), kept separately.

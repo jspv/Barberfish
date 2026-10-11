@@ -3,7 +3,7 @@
 ## 5.0
 
 HUD:
-- Each Karoo profile can have its own HUD, so every bike shows the numbers that suit it. Thanks to Theolean for the request.
+- Four HUD fields, each with its own layout, so the map page, a workout page and each bike can show the numbers that suit them. Thanks to Theolean for the request.
 
 Grade map and Overview:
 - Both now follow a route to a dropped pin or POI, as the HUD profile already did
