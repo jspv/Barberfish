@@ -194,8 +194,8 @@ class HUDField(private val karooSystem: KarooSystemService, private val hud: HUD
                                         SparklineTapReceiver.SURFACE_HUD,
                                     )
                                     putExtra(SparklineTapReceiver.EXTRA_HUD, hud.name)
-                                    // Extras don't make intents distinct, so without this the
-                                    // HUDs would share one PendingIntent and its last extra.
+                                    // Extras don't make PendingIntents distinct; the data URI
+                                    // gives each HUD its own.
                                     data = "barberfish://hud/${hud.name}".toUri()
                                 }
                             val pi =

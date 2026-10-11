@@ -23,7 +23,7 @@ A slot holds power, heart rate, speed, cadence, grade, distance, time, or ETA, i
 
 ## More than one HUD
 
-The map page and a workout page want different numbers, and so do a gravel bike and a mountain bike without a power meter. Barberfish offers four HUD fields: HUD, HUD 2, HUD 3 and HUD 4. Each has its own columns, slots and profile strip, set in the HUD settings after picking it at the top. Place whichever HUD suits a page on that page. The Karoo keeps a separate set of pages for each profile, so a profile gets its own HUD by having a different one placed on its pages.
+The map page and a workout page want different numbers, and so do a gravel bike with a power meter and a mountain bike without one. Barberfish has four HUD fields, HUD, HUD 2, HUD 3 and HUD 4, each with its own columns, slots and profile strip. Pick one at the top of the HUD settings to change it. Each Karoo profile has its own pages, so placing a different HUD on a profile's pages gives that profile its own HUD.
 
 ## Missing sensors
 

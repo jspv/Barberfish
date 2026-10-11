@@ -283,17 +283,17 @@ internal fun Preferences.allHUDConfigs(): Map<HUDId, HUDConfig> =
 fun Context.streamHUDConfig(hud: HUDId): Flow<HUDConfig> =
     dataStore.data.map { it.hudConfig(hud) }.distinctUntilChanged()
 
-/** Applies [transform] to [hud] on fresh preferences, so a concurrent edit is not reverted. */
+/** Applies [transform] to [hud], on fresh preferences so no neighbour is reverted. */
 suspend fun Context.updateHUDConfig(hud: HUDId, transform: (HUDConfig) -> HUDConfig) {
     dataStore.edit { prefs -> prefs.writeHUDConfig(hud, transform(prefs.hudConfig(hud))) }
 }
 
 // --- SparklineConfig ---
-// Separate instances for each HUD's strip and for the standalone elevation-sparkline field.
-// The HUD strips keep their keys in HUDId (HUD ONE's is the original "sparkline_config"); the
-// field instance has its own key and, when unset, falls back to plain defaults. They are not
-// linked: the field never reads a HUD value, and its mode is always ON (see toFieldConfig) so a
-// placed field always renders, never inheriting a HUD's OFF/CLIMBS strip behaviour.
+// Independent instances: each HUD's strip and the standalone elevation-sparkline field.
+// The HUD strips' keys live in HUDId; the field instance has its own key and, when unset, falls
+// back to plain defaults. They are not linked: the field never reads a HUD value, and its mode
+// is always ON (see toFieldConfig) so a placed field always renders, never inheriting a HUD's
+// OFF/CLIMBS strip behaviour.
 
 // Coerces a stored field config (or none) into the effective field config: plain defaults
 // when unset, and mode forced to ON so the standalone field always renders regardless of

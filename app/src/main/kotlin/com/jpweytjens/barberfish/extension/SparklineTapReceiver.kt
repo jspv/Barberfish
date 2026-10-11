@@ -17,7 +17,7 @@ class SparklineTapReceiver : BroadcastReceiver() {
         const val EXTRA_SURFACE = "surface"
         const val SURFACE_HUD = "hud"
         const val SURFACE_FIELD = "field"
-        // Names the tapped HUD (a HUDId name) on HUD strip taps.
+        // HUDId name of the tapped HUD.
         const val EXTRA_HUD = "hud"
         // The last HUD strip tap; only the HUD strips listen (transition overlay).
         // Timestamp is always unique (ms), preventing MutableStateFlow deduplication.

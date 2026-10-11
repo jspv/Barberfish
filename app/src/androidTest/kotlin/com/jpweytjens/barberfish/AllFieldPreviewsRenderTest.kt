@@ -109,8 +109,7 @@ class AllFieldPreviewsRenderTest {
             }
 
             // Second HUD render: flip the HUD setting to 4 columns so both variants
-            // land in the contact sheet, then restore the rider's config. The preview shows
-            // the first HUD; the other three render the same way.
+            // land in the contact sheet, then restore the rider's config.
             val hud = types.filterIsInstance<HUDDataType>().first { it.typeId == HUDId.ONE.typeId }
             val originalHud = runBlocking { context.streamHUDConfig(HUDId.ONE).first() }
             try {
