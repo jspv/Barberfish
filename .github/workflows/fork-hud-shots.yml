@@ -1,0 +1,73 @@
+# Fork-only: runs the HUD config-screen shots on an emulator and uploads the PNGs, so the
+# settings screen can be checked without a Karoo. Also compiles every instrumented test.
+name: Fork HUD shots
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to test
+        required: true
+        default: fork-shots
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Build app and test APKs
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest
+
+      - name: Run shots on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w -e class com.jpweytjens.barberfish.MultiHUDShotsTest,com.jpweytjens.barberfish.ConfigShotsRenderTest#hudConfig com.jpweytjens.barberfish.test/androidx.test.runner.AndroidJUnitRunner | tee instrument.txt
+            mkdir -p shots
+            adb pull /sdcard/Android/data/com.jpweytjens.barberfish/files/multi_hud_shots shots/ || true
+            adb pull /sdcard/Android/data/com.jpweytjens.barberfish/files/config_shots shots/ || true
+            grep -q "^OK (" instrument.txt
+
+      - name: Upload shots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hud-shots
+          path: |
+            shots/
+            instrument.txt
